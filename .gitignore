@@ -36,3 +36,8 @@ next-env.d.ts
 .vscode/
 .idea/
 .env
+
+# Symlink to ~/.claude/projects/<encoded-cwd> — the pre-commit hook follows
+# this and copies the resolved conversation JSONL files into .ai-conversations/.
+# The symlink itself should not be tracked.
+.claude

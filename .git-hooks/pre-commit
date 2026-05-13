@@ -58,6 +58,24 @@ capture_if_exists ".cline" "cline"
 # Windsurf/Cascade — stores AI logs
 capture_if_exists ".windsurf" "windsurf"
 
+# Redact known secret patterns from captured transcripts before staging.
+# Runs over every text file under $AI_LOG_DIR. Local source transcripts in
+# ~/.claude/projects/... are untouched — only the committed copies are scrubbed.
+# Add new patterns as needed; each is a perl-compatible s/// replacement.
+if [ -d "$AI_LOG_DIR" ] && command -v perl >/dev/null 2>&1; then
+  find "$AI_LOG_DIR" -type f \( -name '*.jsonl' -o -name '*.json' -o -name '*.md' -o -name '*.txt' \) -print0 \
+    | xargs -0 perl -pi -e '
+        s/pat[A-Za-z0-9]{14,}\.[a-f0-9]{64}/[REDACTED_AIRTABLE_PAT]/g;
+        # Specific compromised tokens — keep these even after the full-pattern
+        # rule above, to catch partial references (prefix-only mentions).
+        s/patDL9PffQHovUyU9(?:\.[a-f0-9]+)?/[REDACTED_AIRTABLE_PAT]/g;
+        s/ghp_[A-Za-z0-9]{36,}/[REDACTED_GITHUB_PAT]/g;
+        s/sk-(?:proj-)?[A-Za-z0-9_\-]{32,}/[REDACTED_OPENAI_KEY]/g;
+        s/sk-ant-[A-Za-z0-9_\-]{32,}/[REDACTED_ANTHROPIC_KEY]/g;
+        s/AKIA[0-9A-Z]{16}/[REDACTED_AWS_ACCESS_KEY]/g;
+      '
+fi
+
 # Stage the AI log directory if anything was captured
 if [ -d "$AI_LOG_DIR" ] && [ "$(ls -A "$AI_LOG_DIR" 2>/dev/null)" ]; then
   git add "$AI_LOG_DIR" 2>/dev/null
