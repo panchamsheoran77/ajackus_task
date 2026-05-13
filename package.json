@@ -15,14 +15,18 @@
     "db:migrate:dev": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
     "db:reset": "prisma migrate reset --force --skip-seed && npm run db:seed",
-    "setup": "prisma migrate deploy && prisma generate && npm run db:seed"
+    "setup": "prisma migrate deploy && prisma generate && npm run db:seed",
+    "worker": "tsx bin/worker.ts",
+    "worker:dev": "tsx watch bin/worker.ts"
   },
   "dependencies": {
     "@prisma/client": "6.1.0",
     "@tanstack/react-query": "5.62.7",
     "airtable": "0.12.2",
     "bcryptjs": "2.4.3",
+    "bullmq": "^5.76.8",
     "clsx": "2.1.1",
+    "ioredis": "^5.10.1",
     "jsonwebtoken": "9.0.2",
     "next": "15.5.15",
     "react": "19.0.0",

@@ -20,6 +20,13 @@ enum TaskStatus {
   done
 }
 
+enum ExportStatus {
+  queued
+  running
+  succeeded
+  failed
+}
+
 model User {
   id           String   @id @default(cuid())
   email        String
@@ -33,6 +40,7 @@ model User {
   assignedTasks  Task[]       @relation("TaskAssignee")
   createdTasks   Task[]       @relation("TaskCreator")
   comments       Comment[]    @relation("CommentAuthor")
+  exportJobs     ExportJob[]  @relation("ExportTriggeredBy")
 
   @@map("users")
 }
@@ -48,6 +56,7 @@ model Project {
   owner       User         @relation("ProjectOwner", fields: [ownerId], references: [id])
   memberships Membership[]
   tasks       Task[]
+  exportJobs  ExportJob[]
 
   @@map("projects")
 }
@@ -100,4 +109,28 @@ model Comment {
 
   @@index([taskId, createdAt])
   @@map("comments")
+}
+
+model ExportJob {
+  id                  String       @id @default(cuid())
+  projectId           String       @map("project_id")
+  triggeredById       String       @map("triggered_by_id")
+  status              ExportStatus @default(queued)
+  totalTasks          Int          @default(0) @map("total_tasks")
+  successCount        Int          @default(0) @map("success_count")
+  failureCount        Int          @default(0) @map("failure_count")
+  errors              Json?
+  attempts            Int          @default(0)
+  lastProcessedTaskId String?      @map("last_processed_task_id")
+  heartbeatAt         DateTime?    @map("heartbeat_at")
+  bullJobId           String?      @map("bull_job_id")
+  startedAt           DateTime?    @map("started_at")
+  finishedAt          DateTime?    @map("finished_at")
+  createdAt           DateTime     @default(now()) @map("created_at")
+
+  project     Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  triggeredBy User    @relation("ExportTriggeredBy", fields: [triggeredById], references: [id])
+
+  @@index([projectId, createdAt])
+  @@map("export_jobs")
 }

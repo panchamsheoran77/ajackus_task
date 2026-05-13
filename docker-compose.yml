@@ -10,6 +10,13 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
 
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+
   web:
     build: .
     command: npm run dev
@@ -20,10 +27,32 @@ services:
       - "3000:3000"
     depends_on:
       - db
+      - redis
     environment:
       DATABASE_URL: postgresql://taskboard:taskboard@db:5432/taskboard?schema=public
       JWT_SECRET: dev-secret-change-me
       NODE_ENV: development
+      REDIS_URL: redis://redis:6379
+      AIRTABLE_API_KEY: ${AIRTABLE_API_KEY:-}
+      AIRTABLE_BASE_ID: ${AIRTABLE_BASE_ID:-}
+      AIRTABLE_TABLE_NAME: ${AIRTABLE_TABLE_NAME:-Tasks}
+
+  worker:
+    build: .
+    command: npm run worker
+    volumes:
+      - .:/app
+      - node_modules:/app/node_modules
+    depends_on:
+      - db
+      - redis
+    environment:
+      DATABASE_URL: postgresql://taskboard:taskboard@db:5432/taskboard?schema=public
+      NODE_ENV: development
+      REDIS_URL: redis://redis:6379
+      AIRTABLE_API_KEY: ${AIRTABLE_API_KEY:-}
+      AIRTABLE_BASE_ID: ${AIRTABLE_BASE_ID:-}
+      AIRTABLE_TABLE_NAME: ${AIRTABLE_TABLE_NAME:-Tasks}
 
   test:
     build: .
@@ -40,4 +69,5 @@ services:
 
 volumes:
   pgdata:
+  redisdata:
   node_modules:

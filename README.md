@@ -107,6 +107,64 @@ curl -H "Authorization: Bearer <token>" http://localhost:3000/api/projects
 - `PATCH /api/tasks/:id` — Update a task (authenticated)
 - `DELETE /api/tasks/:id` — Delete a task (authenticated)
 
+### Airtable Export
+- `POST /api/projects/:id/exports` — Start an export to Airtable (admin/member only). Returns the initial snapshot. If an export is already in flight for the project, the existing one is returned instead.
+- `GET /api/projects/:id/exports` — List recent export jobs for the project.
+- `GET /api/projects/:id/exports/:exportId` — Status snapshot (Redis-first, DB fallback).
+- `GET /api/projects/:id/exports/:exportId/errors` — Full per-record error list (cold DB read; called lazily by the UI).
+
+## Airtable Export Setup
+
+The export pushes every task in a project into a real Airtable base using the official `airtable` SDK. Idempotency is handled by Airtable's `performUpsert` keyed on a `TaskBoardId` field, so running the export multiple times never creates duplicates.
+
+### 1. Configure environment
+
+```env
+AIRTABLE_API_KEY="pat..."           # personal access token
+AIRTABLE_BASE_ID="app..."           # the Airtable base to write to
+AIRTABLE_TABLE_NAME="Tasks"         # table within the base (default: Tasks)
+REDIS_URL="redis://localhost:6379"
+```
+
+### 2. Required Airtable table schema
+
+Create a table named `Tasks` (or whatever `AIRTABLE_TABLE_NAME` is set to) in your base with these fields:
+
+| Field | Type | Notes |
+|---|---|---|
+| `TaskBoardId` | Single line text | **Upsert key** — must exist. |
+| `Title` | Single line text | |
+| `Description` | Long text | |
+| `Status` | Single select | Options: `todo`, `in_progress`, `review`, `done` |
+| `Assignee` | Single line text | Assignee's display name (nullable) |
+| `CreatedAt` | Date | |
+| `UpdatedAt` | Date | |
+
+Missing fields surface as per-record `422`s in the export's `errors` list; they don't abort the job.
+
+### 3. Run Redis and the worker
+
+The worker is a long-running Node process (BullMQ). Redis is required.
+
+```bash
+# Docker (both services come up automatically)
+docker compose up
+
+# Or run the worker manually against your local Postgres/Redis
+npm run worker          # production-style
+npm run worker:dev      # with tsx watch
+```
+
+### 4. Trigger the export
+
+Open a project's detail page as an admin or member and click **Export to Airtable**. Use the **Refresh** button on the status card to pull the latest progress — status reads hit Redis with a Postgres fallback, so refreshes stay cheap even under load. When the job is terminal you can re-trigger to run again; the upsert keeps Airtable in sync without duplicating records.
+
+### How resilience is handled
+
+- **Retry policy** — `429` / `5xx` / network errors are retried with exponential backoff (max 5 attempts). `401` / `403` / `404` mark the job `failed` immediately. `422` / `400` at the batch level falls back to per-record upserts so one bad row doesn't take down the other nine.
+- **Crash recovery** — the worker writes a cursor (`lastProcessedTaskId`) and running counts to the `ExportJob` row after every batch. On worker restart or BullMQ stall detection, the job is re-picked-up and resumes from the cursor. Replayed batches are no-ops in Airtable thanks to `performUpsert`.
+- **Single-flight per project** — `SET NX export:active:{projectId}` in Redis guarantees only one export runs at a time per project; concurrent POSTs return the already-running job.
+
 ## Tech Stack
 
 - Node.js 20 (runtime)
@@ -117,4 +175,6 @@ curl -H "Authorization: Bearer <token>" http://localhost:3000/api/projects
 - Zod 3 (schema validation)
 - Tailwind CSS 3
 - bcryptjs + jsonwebtoken
+- BullMQ + ioredis (background export worker)
+- airtable (official SDK) for the export target
 - Vitest 2 (testing)

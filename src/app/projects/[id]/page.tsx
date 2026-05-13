@@ -4,11 +4,12 @@ import { use, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiFetch, getToken } from "@/lib/api-client";
+import { apiFetch, getStoredUser, getToken } from "@/lib/api-client";
 import { Header } from "@/components/Header";
 import { StatusColumn } from "@/components/StatusColumn";
 import { TaskDetail } from "@/components/TaskDetail";
-import type { ApiProjectDetail, ApiTask, TaskStatus } from "@/types";
+import { ExportToAirtableButton } from "@/components/ExportToAirtableButton";
+import type { ApiProjectDetail, ApiTask, Role, TaskStatus } from "@/types";
 import { STATUS_ORDER } from "@/types";
 
 type PageProps = { params: Promise<{ id: string }> };
@@ -46,6 +47,12 @@ export default function ProjectPage({ params }: PageProps) {
   });
 
   const project = data?.project;
+  const storedUser = getStoredUser();
+  const currentUserRole: Role | null =
+    project && storedUser
+      ? (project.memberships.find((m) => m.user.id === storedUser.id)?.role ?? null)
+      : null;
+
   const tasksByStatus: Record<TaskStatus, ApiTask[]> = {
     todo: [],
     in_progress: [],
@@ -79,7 +86,7 @@ export default function ProjectPage({ params }: PageProps) {
 
         {project && (
           <>
-            <div className="flex items-start justify-between mt-4 mb-8">
+            <div className="flex items-start justify-between mt-4 mb-8 gap-6">
               <div>
                 <h1 className="text-2xl font-semibold">{project.name}</h1>
                 {project.description && (
@@ -91,6 +98,10 @@ export default function ProjectPage({ params }: PageProps) {
                   owner: {project.owner.name} · {project.memberships.length} members
                 </p>
               </div>
+              <ExportToAirtableButton
+                projectId={id}
+                currentUserRole={currentUserRole}
+              />
             </div>
 
             <section className="bg-surface border border-border rounded-lg p-4 mb-6">
