@@ -5,6 +5,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api-client";
 import type { ApiTask, ApiProjectMember, TaskStatus } from "@/types";
 import { STATUS_LABELS, STATUS_ORDER } from "@/types";
+import { TaskComments } from "@/components/TaskComments";
 
 type Props = {
   task: ApiTask;
@@ -129,7 +130,9 @@ export function TaskDetail({ task, projectId, members, onClose }: Props) {
           </p>
         )}
 
-        <div className="flex items-center justify-between gap-3">
+        <TaskComments taskId={task.id} members={members} />
+
+        <div className="flex items-center justify-between gap-3 mt-6">
           <button
             onClick={() => deleteTask.mutate()}
             disabled={deleteTask.isPending}
